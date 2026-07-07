@@ -104,33 +104,25 @@ def _format_evidence(files: list[dict], deps: list[str]) -> str:
 
 def _build_prompt(ticket: dict, evidence: str) -> str:
     return textwrap.dedent(f"""
-        You are a senior engineer reviewing whether a product feature has been implemented.
+        You are a code reviewer. Decide if a feature ticket is implemented in the codebase.
 
-        TICKET
-        ------
-        ID         : {ticket['id']}
-        Title      : {ticket['title']}
-        Status     : {ticket['status']}
-        Priority   : {ticket['priority']}
-        Description: {ticket['description'][:500]}
+        TICKET {ticket['id']}: {ticket['title']}
+        Description: {ticket['description'][:400]}
 
-        CODEBASE EVIDENCE
-        -----------------
+        CODEBASE FILES FOUND:
         {evidence}
 
-        TASK
-        ----
-        Based ONLY on the evidence above, classify this ticket as exactly one of:
-          IMPLEMENTED — the feature clearly exists in the codebase
-          PARTIAL     — some relevant code exists but the feature is incomplete
-          MISSING     — no matching implementation found
-          UNCLEAR     — not enough evidence to decide
+        Instructions:
+        - If the files clearly implement what the ticket describes, answer IMPLEMENTED.
+        - If some code exists but it is incomplete, answer PARTIAL.
+        - If there is no matching code at all, answer MISSING.
+        - Only answer UNCLEAR if the evidence is truly ambiguous.
 
-        Then write ONE sentence (max 20 words) explaining your reasoning.
+        You MUST respond with exactly two lines and nothing else. No markdown. No explanation outside these two lines.
+        Line 1: STATUS: IMPLEMENTED
+        Line 2: REASON: one short sentence
 
-        Respond in this exact format (nothing else):
-        STATUS: <IMPLEMENTED|PARTIAL|MISSING|UNCLEAR>
-        REASON: <one sentence>
+        Replace IMPLEMENTED with PARTIAL, MISSING, or UNCLEAR as appropriate.
     """).strip()
 
 
@@ -169,14 +161,34 @@ def _ask_llm(prompt: str) -> str:
 
 
 def _parse_response(raw: str) -> tuple[str, str]:
+    # Strip markdown fences and ANSI codes the model sometimes emits
+    cleaned = re.sub(r"```[\s\S]*?```", "", raw)
+    cleaned = re.sub(r"`([^`]+)`", r"\1", cleaned)
+    cleaned = re.sub(r"\x1b\[[0-9;]*m", "", cleaned).strip()
+
     status = "UNCLEAR"
-    reason = raw.strip()
-    status_match = re.search(r"STATUS:\s*(IMPLEMENTED|PARTIAL|MISSING|UNCLEAR)", raw, re.IGNORECASE)
-    reason_match = re.search(r"REASON:\s*(.+)", raw, re.IGNORECASE)
+    reason = "No reasoning returned."
+
+    status_match = re.search(r"STATUS:\s*(IMPLEMENTED|PARTIAL|MISSING|UNCLEAR)", cleaned, re.IGNORECASE)
+    reason_match = re.search(r"REASON:\s*(.+)", cleaned, re.IGNORECASE)
+
     if status_match:
         status = status_match.group(1).upper()
+
     if reason_match:
         reason = reason_match.group(1).strip()
+    elif cleaned and not status_match:
+        # Model returned something but not in the expected format — try to infer
+        lower = cleaned.lower()
+        if "implement" in lower and "not" not in lower[:30]:
+            status, reason = "IMPLEMENTED", cleaned[:120]
+        elif "partial" in lower or "some" in lower:
+            status, reason = "PARTIAL", cleaned[:120]
+        elif "missing" in lower or "no " in lower or "not found" in lower:
+            status, reason = "MISSING", cleaned[:120]
+        else:
+            reason = cleaned[:120]
+
     return status, reason
 
 
