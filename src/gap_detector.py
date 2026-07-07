@@ -2,8 +2,8 @@
 gap_detector.py
 ===============
 The core reasoning engine. For each ticket, it builds a focused prompt
-containing the ticket details + relevant codebase evidence, then asks Bob
-(via its HTTP API) to classify the implementation status.
+containing the ticket details + relevant codebase evidence, then asks
+Bob Shell (IBM Bob) to classify the implementation status.
 
 Status values:
   IMPLEMENTED  — clear evidence the feature exists in code
@@ -11,23 +11,24 @@ Status values:
   MISSING      — no matching code evidence found
   UNCLEAR      — not enough signal to decide
 
-Bob is called via its local API (default: http://localhost:11434/api/generate,
-compatible with Ollama's format which Bob exposes). Update BOB_API_URL in .env
-to point at your Bob MCP endpoint if it differs.
+Requires in .env:
+  BOBSHELL_API_KEY  — API key from internal.bob.ibm.com (Scope: Inference)
+
+Bob Shell must be installed:
+  curl -fsSL https://bob.ibm.com/download/bobshell.sh | bash
 """
 
 import os
 import re
+import subprocess
 import textwrap
 from typing import Optional
 
-import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
 
-BOB_API_URL = os.getenv("BOB_API_URL", "http://localhost:11434")
-BOB_MODEL   = os.getenv("BOB_MODEL", "granite3-dense:8b")
+BOBSHELL_API_KEY = os.getenv("BOBSHELL_API_KEY", "")
 
 VALID_STATUSES = {"IMPLEMENTED", "PARTIAL", "MISSING", "UNCLEAR"}
 
@@ -53,11 +54,9 @@ def _build_index(snapshot: dict) -> dict[str, list[str]]:
 
 def _relevant_files(ticket: dict, snapshot: dict, index: dict) -> list[dict]:
     """Return the top-10 most relevant files for a given ticket."""
-    # Extract keywords from ticket title + description
     text = f"{ticket['title']} {ticket['description']}".lower()
     keywords = set(re.findall(r"[a-z]{3,}", text))
 
-    # Score files by keyword hit count
     scores: dict[str, int] = {}
     for kw in keywords:
         for path in index.get(kw, []):
@@ -118,33 +117,41 @@ def _build_prompt(ticket: dict, evidence: str) -> str:
     """).strip()
 
 
-# ── Bob API call ──────────────────────────────────────────────────────────────
+# ── Bob Shell call ────────────────────────────────────────────────────────────
 
 def _ask_bob(prompt: str) -> str:
     """
-    Call Bob's HTTP API and return the raw generated text.
-    Compatible with Ollama-style /api/generate endpoint.
-    Adjust the payload structure if your Bob endpoint differs.
+    Call Bob Shell as a subprocess with the API key.
+    bob --auth-method api-key -p "<prompt>"
     """
+    if not BOBSHELL_API_KEY:
+        return "STATUS: UNCLEAR\nREASON: BOBSHELL_API_KEY not set in .env"
+
+    env = os.environ.copy()
+    env["BOBSHELL_API_KEY"] = BOBSHELL_API_KEY
+
     try:
-        resp = httpx.post(
-            f"{BOB_API_URL}/api/generate",
-            json={
-                "model":  BOB_MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "options": {"temperature": 0, "num_predict": 120},
-            },
+        result = subprocess.run(
+            ["bob", "--auth-method", "api-key", "-p", prompt],
+            capture_output=True,
+            text=True,
             timeout=60,
+            env=env,
         )
-        resp.raise_for_status()
-        return resp.json().get("response", "").strip()
-    except httpx.ConnectError:
-        # Bob not running locally — return a deterministic fallback
-        # so the rest of the pipeline still works during development
-        return "STATUS: UNCLEAR\nREASON: Bob API is not reachable; check BOB_API_URL in .env"
+        output = result.stdout.strip()
+        if not output and result.stderr:
+            return f"STATUS: UNCLEAR\nREASON: Bob Shell error — {result.stderr.strip()[:200]}"
+        return output
+    except FileNotFoundError:
+        return (
+            "STATUS: UNCLEAR\n"
+            "REASON: Bob Shell not installed — run: "
+            "curl -fsSL https://bob.ibm.com/download/bobshell.sh | bash"
+        )
+    except subprocess.TimeoutExpired:
+        return "STATUS: UNCLEAR\nREASON: Bob Shell timed out after 60s"
     except Exception as e:
-        return f"STATUS: UNCLEAR\nREASON: Bob API error — {e}"
+        return f"STATUS: UNCLEAR\nREASON: Bob Shell error — {e}"
 
 
 def _parse_response(raw: str) -> tuple[str, str]:
@@ -181,10 +188,10 @@ def analyze(tickets: list[dict], snapshot: dict) -> list[dict]:
     results = []
 
     for ticket in tickets:
-        rel_files = _relevant_files(ticket, snapshot, index)
-        evidence  = _format_evidence(rel_files, snapshot.get("dependencies", []))
-        prompt    = _build_prompt(ticket, evidence)
-        raw       = _ask_bob(prompt)
+        rel_files  = _relevant_files(ticket, snapshot, index)
+        evidence   = _format_evidence(rel_files, snapshot.get("dependencies", []))
+        prompt     = _build_prompt(ticket, evidence)
+        raw        = _ask_bob(prompt)
         gap_status, reason = _parse_response(raw)
 
         results.append({
