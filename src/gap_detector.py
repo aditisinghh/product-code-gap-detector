@@ -121,26 +121,37 @@ def _build_prompt(ticket: dict, evidence: str) -> str:
 
 def _ask_bob(prompt: str) -> str:
     """
-    Call Bob Shell as a subprocess with the API key.
-    bob --auth-method api-key -p "<prompt>"
+    Call Bob Shell in one-shot mode (positional prompt) with
+    --hide-intermediary-output so only the final answer is returned.
+    Auth via BOBSHELL_API_KEY env var (Scope: Inference).
     """
-    if not BOBSHELL_API_KEY:
-        return "STATUS: UNCLEAR\nREASON: BOBSHELL_API_KEY not set in .env"
-
     env = os.environ.copy()
-    env["BOBSHELL_API_KEY"] = BOBSHELL_API_KEY
+    if BOBSHELL_API_KEY:
+        env["BOBSHELL_API_KEY"] = BOBSHELL_API_KEY
+
+    cmd = [
+        "bob",
+        "--hide-intermediary-output",
+        "--auth-method", "api-key",
+        "--yolo",          # no interactive approval prompts
+        "--chat-mode", "ask",  # ask mode = pure Q&A, no file edits
+        prompt,            # positional prompt = one-shot non-interactive
+    ]
 
     try:
         result = subprocess.run(
-            ["bob", "--auth-method", "api-key", "-p", prompt],
+            cmd,
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=120,
             env=env,
         )
-        output = result.stdout.strip()
-        if not output and result.stderr:
-            return f"STATUS: UNCLEAR\nREASON: Bob Shell error — {result.stderr.strip()[:200]}"
+        output = (result.stdout or "").strip()
+        # Strip any ANSI escape codes Bob may emit
+        output = re.sub(r"\x1b\[[0-9;]*m", "", output).strip()
+        if not output:
+            stderr = (result.stderr or "").strip()
+            return f"STATUS: UNCLEAR\nREASON: Bob returned no output — {stderr[:200]}"
         return output
     except FileNotFoundError:
         return (
@@ -149,7 +160,7 @@ def _ask_bob(prompt: str) -> str:
             "curl -fsSL https://bob.ibm.com/download/bobshell.sh | bash"
         )
     except subprocess.TimeoutExpired:
-        return "STATUS: UNCLEAR\nREASON: Bob Shell timed out after 60s"
+        return "STATUS: UNCLEAR\nREASON: Bob Shell timed out after 120s"
     except Exception as e:
         return f"STATUS: UNCLEAR\nREASON: Bob Shell error — {e}"
 
