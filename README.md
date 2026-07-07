@@ -87,14 +87,21 @@ Written directly from the real ZAIOps dashboard backend spec:
 
 ## Quick Start
 
-### 1. Install dependencies
+### 1. Clone the repo
+
+```bash
+git clone https://github.com/aditisinghh/product-code-gap-detector.git
+cd product-code-gap-detector
+```
+
+### 2. Install dependencies
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Configure environment
+### 3. Configure environment
 
 ```bash
 cp .env.example .env
@@ -109,7 +116,7 @@ IFM_TARGET_URL=https://us-south.ml.cloud.ibm.com
 GITHUB_TOKEN=ghp_...   # only needed for private repos
 ```
 
-### 3. Run
+### 4. Run
 
 ```bash
 python app.py
