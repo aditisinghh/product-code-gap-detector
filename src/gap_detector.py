@@ -86,31 +86,28 @@ def _relevant_files(ticket: dict, snapshot: dict, index: dict) -> list[dict]:
 
 
 def _format_evidence(files: list[dict], deps: list[str]) -> str:
+    """Compact evidence: one line per file listing ALL its symbols."""
     lines = []
     for f in files:
-        syms = ", ".join(f["symbols"][:15]) or "—"
-        docs = " | ".join(f["docstrings"][:3])
-        cmts = " | ".join(f["comments"][:5])
-        lines.append(f"  FILE: {f['path']}")
-        lines.append(f"    symbols   : {syms}")
-        if docs:
-            lines.append(f"    docstrings: {docs[:200]}")
-        if cmts:
-            lines.append(f"    comments  : {cmts[:200]}")
+        syms = ", ".join(f["symbols"]) or "—"
+        lines.append(f"- {f['path']}: {syms}")
     if deps:
-        lines.append(f"  DEPENDENCIES: {', '.join(deps[:30])}")
-    return "\n".join(lines) if lines else "  (no matching source files found)"
+        lines.append(f"dependencies: {', '.join(deps[:20])}")
+    return "\n".join(lines) if lines else "(no matching source files found)"
 
 
 def _build_prompt(ticket: dict, evidence: str) -> str:
     return (
         f"Ticket: {ticket['title']}\n"
         f"Description: {ticket['description'][:300]}\n\n"
-        f"Relevant codebase files:\n{evidence[:600]}\n\n"
-        f"Is this ticket IMPLEMENTED, PARTIAL, MISSING, or UNCLEAR in the codebase above?\n"
-        f"Reply with two lines only:\n"
-        f"STATUS: [one of IMPLEMENTED/PARTIAL/MISSING/UNCLEAR]\n"
-        f"REASON: [one sentence]"
+        f"Codebase functions and files found:\n{evidence}\n\n"
+        f"Based on the function names and files listed above, is this ticket "
+        f"IMPLEMENTED, PARTIAL, or MISSING in the codebase?\n"
+        f"Reply with exactly two lines:\n"
+        f"STATUS: IMPLEMENTED\n"
+        f"REASON: one sentence\n\n"
+        f"Replace IMPLEMENTED with PARTIAL or MISSING as appropriate. "
+        f"Use IMPLEMENTED if a matching function exists even if not perfect."
     )
 
 
