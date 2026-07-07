@@ -130,17 +130,21 @@ def _build_prompt(ticket: dict, evidence: str) -> str:
 
 def _ask_llm(prompt: str) -> str:
     """Call IBM Granite via watsonx.ai and return the raw generated text."""
-    if not WATSONX_API_KEY or not WATSONX_SPACE_ID:
-        return "STATUS: UNCLEAR\nREASON: IFM_TARGET_API_KEY or IFM_TARGET_SPACE_ID not set in .env"
+    if not WATSONX_API_KEY:
+        print("❌  IFM_TARGET_API_KEY is not set in .env")
+        return "STATUS: UNCLEAR\nREASON: IFM_TARGET_API_KEY not set in .env"
+    if not WATSONX_SPACE_ID:
+        print("❌  IFM_TARGET_SPACE_ID is not set in .env")
+        return "STATUS: UNCLEAR\nREASON: IFM_TARGET_SPACE_ID not set in .env"
     try:
-        token   = _get_iam_token()
+        token = _get_iam_token()
         payload = json.dumps({
             "model_id":  WATSONX_MODEL_ID,
             "space_id":  WATSONX_SPACE_ID,
             "input":     prompt,
             "parameters": {
                 "decoding_method": "greedy",
-                "max_new_tokens":  120,
+                "max_new_tokens":  150,
                 "stop_sequences":  ["\n\n"],
             },
         }).encode()
@@ -154,9 +158,17 @@ def _ask_llm(prompt: str) -> str:
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=30) as r:
-            result = json.loads(r.read())
-        return result["results"][0]["generated_text"].strip()
+            raw_bytes = r.read()
+        result = json.loads(raw_bytes)
+        text = result["results"][0]["generated_text"].strip()
+        print(f"✅  watsonx response: {text[:120]}")
+        return text
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="ignore")
+        print(f"❌  watsonx HTTP {e.code}: {body[:300]}")
+        return f"STATUS: UNCLEAR\nREASON: watsonx HTTP {e.code} — {body[:200]}"
     except Exception as e:
+        print(f"❌  watsonx error: {e}")
         return f"STATUS: UNCLEAR\nREASON: watsonx error — {e}"
 
 
