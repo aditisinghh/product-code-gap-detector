@@ -80,9 +80,19 @@ def _relevant_files(ticket: dict, snapshot: dict, index: dict) -> list[dict]:
     for kw in keywords:
         for path in index.get(kw, []):
             scores[path] = scores.get(path, 0) + 1
-    top_paths = sorted(scores, key=scores.__getitem__, reverse=True)[:10]
+
     path_to_file = {f["path"]: f for f in snapshot["files"]}
-    return [path_to_file[p] for p in top_paths if p in path_to_file]
+    top_paths = sorted(scores, key=scores.__getitem__, reverse=True)[:8]
+    result = [path_to_file[p] for p in top_paths if p in path_to_file]
+
+    # Always include the largest file (usually the main API/app file) — it
+    # contains most endpoints and the keyword index often misses it.
+    if snapshot["files"]:
+        largest = max(snapshot["files"], key=lambda f: len(f.get("symbols", [])))
+        if largest["path"] not in {f["path"] for f in result}:
+            result.insert(0, largest)
+
+    return result[:10]
 
 
 def _format_evidence(files: list[dict], deps: list[str]) -> str:
