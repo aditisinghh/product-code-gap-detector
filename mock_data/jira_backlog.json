@@ -1,92 +1,182 @@
 [
   {
-    "id": "PROJ-101",
-    "title": "Add rate limiting to the /login endpoint",
-    "status": "In Progress",
+    "id": "DASH-101",
+    "title": "Revenue summary endpoint with YTY comparison",
+    "status": "Done",
     "type": "Story",
     "priority": "High",
-    "description": "Implement rate limiting on the /login route to prevent brute-force attacks. Max 5 attempts per minute per IP. Return 429 on breach.",
-    "labels": ["security", "auth"]
+    "description": "Build GET /revenue/summary that returns Transactional, Stream, and Total revenue rows. Each row must include budget, actual, variance, budget_percent, and yty_percent. Compare current quarter vs same quarter prior year.",
+    "labels": ["revenue", "backend", "api"]
   },
   {
-    "id": "PROJ-102",
-    "title": "Email verification on signup",
-    "status": "To Do",
+    "id": "DASH-102",
+    "title": "Top deals and negative deals endpoints",
+    "status": "Done",
     "type": "Story",
     "priority": "High",
-    "description": "After a user registers, send a verification email with a time-limited token. Block login until email is confirmed.",
-    "labels": ["auth", "email"]
+    "description": "GET /revenue/top-deals returns top N customers by revenue in the selected quarter. GET /revenue/negative-deals returns customers with largest YTY revenue decline, including opportunity owner name and email from pipeline data.",
+    "labels": ["revenue", "backend", "api"]
   },
   {
-    "id": "PROJ-103",
-    "title": "User profile page",
+    "id": "DASH-103",
+    "title": "Quarterly revenue trend chart endpoint",
     "status": "Done",
     "type": "Story",
     "priority": "Medium",
-    "description": "Create a /profile route that displays user information and allows editing name, avatar, and timezone.",
-    "labels": ["frontend", "user"]
+    "description": "GET /revenue/quarterly returns trailing quarters split by Transactional vs Stream revenue. Must support year, quarter, and region filter params. Used to power the revenue trend line chart.",
+    "labels": ["revenue", "charts", "api"]
   },
   {
-    "id": "PROJ-104",
-    "title": "Dark mode support",
-    "status": "In Progress",
+    "id": "DASH-104",
+    "title": "Revenue by IOT/geography segment",
+    "status": "Done",
+    "type": "Story",
+    "priority": "Medium",
+    "description": "GET /revenue/by-iot returns revenue broken down by geography segment (Americas, EMEA, APAC, Japan). Returns segments array and total_revenue. Used for the regional breakdown pie/bar chart.",
+    "labels": ["revenue", "geography", "api"]
+  },
+  {
+    "id": "DASH-105",
+    "title": "Customer segmentation — new vs growth",
+    "status": "Done",
+    "type": "Story",
+    "priority": "Medium",
+    "description": "GET /revenue/customer-segmentation segments customers into new (not seen in prior year same quarter) vs growth (existing). Returns count and revenue for each segment.",
+    "labels": ["revenue", "customers", "api"]
+  },
+  {
+    "id": "DASH-106",
+    "title": "Global filter bar — year, quarter, region, product, UT30 dropdowns",
+    "status": "Done",
+    "type": "Story",
+    "priority": "High",
+    "description": "GET /filters returns dropdown options derived from the live data: years, quarters, regions, products, ut30s, and pipeline_quarters. All revenue and pipeline endpoints must respect year, quarter, region, product, and ut30 query params.",
+    "labels": ["filters", "frontend", "api"]
+  },
+  {
+    "id": "DASH-107",
+    "title": "Excel workbook upload — ingest sheets into PostgreSQL",
+    "status": "Done",
+    "type": "Story",
+    "priority": "High",
+    "description": "POST /upload accepts a multipart Excel file. Each sheet becomes a PostgreSQL table named {filename}__{sheet}. Replace existing table on re-upload. Return filename, sheets loaded, and total rows ingested.",
+    "labels": ["upload", "backend", "database"]
+  },
+  {
+    "id": "DASH-108",
+    "title": "Pipeline won and lost opportunities by quarter",
+    "status": "Done",
+    "type": "Story",
+    "priority": "High",
+    "description": "GET /pipeline/won-prior and GET /pipeline/lost-prior return top customers by opportunity value for the prior quarter. GET /pipeline/won-current returns won opps for the current quarter at the selected week snapshot.",
+    "labels": ["pipeline", "backend", "api"]
+  },
+  {
+    "id": "DASH-109",
+    "title": "Pipeline opportunity value and stage breakdown by week",
+    "status": "Done",
+    "type": "Story",
+    "priority": "High",
+    "description": "GET /pipeline/opp-value-by-week returns total pipeline value and opp count per week for the prior quarter. GET /pipeline/opp-stages-by-week returns opp count per sales stage per week (engage, design, qualify, propose, negotiate, closing, won, lost) for stacked area chart.",
+    "labels": ["pipeline", "charts", "api"]
+  },
+  {
+    "id": "DASH-110",
+    "title": "Pipeline year-over-year comparison with transactional target line",
+    "status": "Done",
+    "type": "Story",
+    "priority": "High",
+    "description": "GET /pipeline/opp-value-yoy returns weekly pipeline totals for current quarter vs same quarter prior year, plus a transactional target line from the budget table. Used for the YoY trend chart.",
+    "labels": ["pipeline", "yoy", "charts"]
+  },
+  {
+    "id": "DASH-111",
+    "title": "Active pipeline KPI tiles by sales stage",
+    "status": "Done",
+    "type": "Story",
+    "priority": "Medium",
+    "description": "GET /pipeline/active-by-stage returns summary tiles (active pipeline, won, lost, seller forecast = Y) and per-stage tiles for the current quarter at the selected week. Each tile has label, primary value ($M), and secondary (opp count).",
+    "labels": ["pipeline", "kpi", "api"]
+  },
+  {
+    "id": "DASH-112",
+    "title": "Top current quarter opportunities table",
+    "status": "Done",
+    "type": "Story",
+    "priority": "Medium",
+    "description": "GET /pipeline/top-current-opps returns largest active opps forecast to close this quarter. Fields: customer_name, opp_age, sales_stage, market_name, seller_fcst (Y/N), value. Excludes opps older than 365 days.",
+    "labels": ["pipeline", "opportunities", "api"]
+  },
+  {
+    "id": "DASH-113",
+    "title": "Qualtrics satisfaction summary and segment distribution",
+    "status": "Done",
+    "type": "Story",
+    "priority": "High",
+    "description": "GET /satisfaction/summary returns total responses, avg OSAT, satisfaction score (high% - low%), and High/Neutral/Low percentages. GET /satisfaction/distribution returns the count and percentage for each segment for pie chart.",
+    "labels": ["satisfaction", "qualtrics", "api"]
+  },
+  {
+    "id": "DASH-114",
+    "title": "Satisfaction breakdown by product and region",
+    "status": "Done",
+    "type": "Story",
+    "priority": "Medium",
+    "description": "GET /satisfaction/by-product groups satisfaction metrics by product name. GET /satisfaction/by-region groups by country. Both return response_count, avg_osat, satisfaction_score, high_pct, low_pct per group.",
+    "labels": ["satisfaction", "product", "region"]
+  },
+  {
+    "id": "DASH-115",
+    "title": "Satisfaction trend over time (monthly/weekly)",
+    "status": "Done",
+    "type": "Story",
+    "priority": "Medium",
+    "description": "GET /satisfaction/trend returns satisfaction metrics grouped by time period (month or week). Supports period param. Returns avg_osat, high_pct, neutral_pct, low_pct per period for the trend chart.",
+    "labels": ["satisfaction", "trend", "charts"]
+  },
+  {
+    "id": "DASH-116",
+    "title": "Email campaign funnel metrics",
+    "status": "Done",
+    "type": "Story",
+    "priority": "Medium",
+    "description": "GET /satisfaction/email-funnel returns sent, opened, started, completed counts from the Qualtrics email campaigns table, plus open_rate, start_rate, and completion_rate percentages.",
+    "labels": ["satisfaction", "email", "funnel"]
+  },
+  {
+    "id": "DASH-117",
+    "title": "Low satisfaction alerts for immediate follow-up",
+    "status": "Done",
+    "type": "Story",
+    "priority": "High",
+    "description": "GET /satisfaction/low-satisfaction-alerts returns the most recent Low segment survey responses sorted by date descending. Fields: response_id, date, product, region, osat_score, customer_email, comments.",
+    "labels": ["satisfaction", "alerts", "api"]
+  },
+  {
+    "id": "DASH-118",
+    "title": "watsonx AI pipeline insights endpoint",
+    "status": "Done",
+    "type": "Story",
+    "priority": "High",
+    "description": "GET /ai/insights calls IBM Granite via watsonx.ai to generate 4 actionable pipeline insights based on a live data summary. Requires WATSONX_API_KEY and WATSONX_SPACE_ID env vars. Returns insights array and the raw summary sent to the model.",
+    "labels": ["ai", "watsonx", "pipeline"]
+  },
+  {
+    "id": "DASH-119",
+    "title": "Product rollup — bucket raw UT30 values into canonical product names",
+    "status": "Done",
+    "type": "Story",
+    "priority": "Medium",
+    "description": "All product/UT30 filter dropdowns must show canonical product names (e.g. 'Z IT Automation') not raw UT30 codes. Raw values are bucketed by keyword matching rules defined in PRODUCT_ROLLUP. Filtering by a canonical name expands to all matching raw values in SQL.",
+    "labels": ["products", "filters", "backend"]
+  },
+  {
+    "id": "DASH-120",
+    "title": "Schema validation on startup with column mismatch warnings",
+    "status": "Done",
     "type": "Story",
     "priority": "Low",
-    "description": "Add a dark mode toggle in the UI settings panel. Persist the preference in localStorage.",
-    "labels": ["ui", "frontend"]
-  },
-  {
-    "id": "PROJ-105",
-    "title": "Export data to CSV",
-    "status": "To Do",
-    "type": "Story",
-    "priority": "Medium",
-    "description": "Allow users to export their records as a CSV file from the dashboard. Include all visible columns.",
-    "labels": ["export", "dashboard"]
-  },
-  {
-    "id": "PROJ-106",
-    "title": "Webhook notifications",
-    "status": "In Progress",
-    "type": "Story",
-    "priority": "High",
-    "description": "Users can configure webhook URLs. The system should POST a JSON payload to registered URLs on key events (record created, updated, deleted).",
-    "labels": ["integrations", "notifications"]
-  },
-  {
-    "id": "PROJ-107",
-    "title": "Soft delete for records",
-    "status": "Done",
-    "type": "Story",
-    "priority": "Medium",
-    "description": "Records should not be hard-deleted. Add a deleted_at timestamp column. All queries should filter out soft-deleted rows by default.",
-    "labels": ["database", "backend"]
-  },
-  {
-    "id": "PROJ-108",
-    "title": "API pagination",
-    "status": "To Do",
-    "type": "Story",
-    "priority": "High",
-    "description": "All list endpoints must support cursor-based pagination. Add next_cursor and prev_cursor to responses. Default page size 20, max 100.",
-    "labels": ["api", "backend"]
-  },
-  {
-    "id": "PROJ-109",
-    "title": "Audit log for admin actions",
-    "status": "To Do",
-    "type": "Story",
-    "priority": "Medium",
-    "description": "Every admin action (user ban, role change, data deletion) must be logged with timestamp, actor ID, and action payload in an audit_log table.",
-    "labels": ["admin", "compliance"]
-  },
-  {
-    "id": "PROJ-110",
-    "title": "Two-factor authentication (TOTP)",
-    "status": "In Progress",
-    "type": "Story",
-    "priority": "High",
-    "description": "Add optional TOTP-based 2FA. Users can enroll via a QR code scan. On login, prompt for a 6-digit code if 2FA is enabled.",
-    "labels": ["security", "auth"]
+    "description": "On startup, verify every column name in the COL mapping exists in the revenue table. If a column is missing, print a warning with the closest matching column name using difflib. All column names must be configurable in a single COL dict — no hardcoded names elsewhere.",
+    "labels": ["backend", "schema", "devex"]
   }
 ]
