@@ -124,7 +124,7 @@ def build_html_report(report: dict) -> str:
     <thead>
       <tr>
         <th>ID</th><th>Title</th><th>Gap Status</th><th>Jira Status</th>
-        <th>Priority</th><th>Bob's Reasoning</th><th>Evidence Files</th><th>Labels</th>
+        <th>Priority</th><th>watsonx Reasoning</th><th>Evidence Files</th><th>Labels</th>
       </tr>
     </thead>
     <tbody>{rows_html}</tbody>
