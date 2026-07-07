@@ -3,7 +3,7 @@ gap_detector.py
 ===============
 The core reasoning engine. For each ticket, it builds a focused prompt
 containing the ticket details + relevant codebase evidence, then asks
-Bob Shell (IBM Bob) to classify the implementation status.
+watsonx.ai (IBM Granite) to classify the implementation status.
 
 Status values:
   IMPLEMENTED  — clear evidence the feature exists in code
@@ -12,34 +12,55 @@ Status values:
   UNCLEAR      — not enough signal to decide
 
 Requires in .env:
-  BOBSHELL_API_KEY  — API key from internal.bob.ibm.com (Scope: Inference)
-
-Bob Shell must be installed:
-  curl -fsSL https://bob.ibm.com/download/bobshell.sh | bash
+  IFM_TARGET_API_KEY
+  IFM_TARGET_SPACE_ID
+  IFM_TARGET_URL      (optional, defaults to us-south)
 """
 
+import json
 import os
 import re
-import subprocess
 import textwrap
+import urllib.parse
+import urllib.request
 from typing import Optional
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-BOBSHELL_API_KEY = os.getenv("BOBSHELL_API_KEY", "")
+WATSONX_API_KEY  = os.getenv("IFM_TARGET_API_KEY", "")
+WATSONX_SPACE_ID = os.getenv("IFM_TARGET_SPACE_ID", "")
+WATSONX_URL      = os.getenv("IFM_TARGET_URL", "https://us-south.ml.cloud.ibm.com")
+WATSONX_MODEL_ID = "ibm/granite-3-8b-instruct"
 
 VALID_STATUSES = {"IMPLEMENTED", "PARTIAL", "MISSING", "UNCLEAR"}
+
+_iam_token: Optional[str] = None
+
+
+def _get_iam_token() -> str:
+    global _iam_token
+    if _iam_token:
+        return _iam_token
+    data = urllib.parse.urlencode({
+        "grant_type": "urn:ibm:params:oauth:grant-type:apikey",
+        "apikey": WATSONX_API_KEY,
+    }).encode()
+    req = urllib.request.Request(
+        "https://iam.cloud.ibm.com/identity/token",
+        data=data,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=15) as r:
+        _iam_token = json.loads(r.read())["access_token"]
+    return _iam_token
 
 
 # ── Codebase indexing (keyword → files) ──────────────────────────────────────
 
 def _build_index(snapshot: dict) -> dict[str, list[str]]:
-    """
-    Build a reverse index: keyword → [file paths that mention it].
-    Lowercased; used to quickly surface relevant files for each ticket.
-    """
     index: dict[str, list[str]] = {}
     for file in snapshot["files"]:
         words = set()
@@ -53,22 +74,18 @@ def _build_index(snapshot: dict) -> dict[str, list[str]]:
 
 
 def _relevant_files(ticket: dict, snapshot: dict, index: dict) -> list[dict]:
-    """Return the top-10 most relevant files for a given ticket."""
     text = f"{ticket['title']} {ticket['description']}".lower()
     keywords = set(re.findall(r"[a-z]{3,}", text))
-
     scores: dict[str, int] = {}
     for kw in keywords:
         for path in index.get(kw, []):
             scores[path] = scores.get(path, 0) + 1
-
     top_paths = sorted(scores, key=scores.__getitem__, reverse=True)[:10]
     path_to_file = {f["path"]: f for f in snapshot["files"]}
     return [path_to_file[p] for p in top_paths if p in path_to_file]
 
 
 def _format_evidence(files: list[dict], deps: list[str]) -> str:
-    """Format codebase evidence as compact text for the prompt."""
     lines = []
     for f in files:
         syms = ", ".join(f["symbols"][:15]) or "—"
@@ -117,94 +134,63 @@ def _build_prompt(ticket: dict, evidence: str) -> str:
     """).strip()
 
 
-# ── Bob Shell call ────────────────────────────────────────────────────────────
+# ── watsonx.ai call ───────────────────────────────────────────────────────────
 
-def _ask_bob(prompt: str) -> str:
-    """
-    Call Bob Shell in one-shot mode (positional prompt) with
-    --hide-intermediary-output so only the final answer is returned.
-    Auth via BOBSHELL_API_KEY env var (Scope: Inference).
-    """
-    env = os.environ.copy()
-    if BOBSHELL_API_KEY:
-        env["BOBSHELL_API_KEY"] = BOBSHELL_API_KEY
-
-    cmd = [
-        "bob",
-        "--hide-intermediary-output",
-        "--auth-method", "api-key",
-        "--yolo",          # no interactive approval prompts
-        "--chat-mode", "ask",  # ask mode = pure Q&A, no file edits
-        prompt,            # positional prompt = one-shot non-interactive
-    ]
-
+def _ask_llm(prompt: str) -> str:
+    """Call IBM Granite via watsonx.ai and return the raw generated text."""
+    if not WATSONX_API_KEY or not WATSONX_SPACE_ID:
+        return "STATUS: UNCLEAR\nREASON: IFM_TARGET_API_KEY or IFM_TARGET_SPACE_ID not set in .env"
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=120,
-            env=env,
+        token   = _get_iam_token()
+        payload = json.dumps({
+            "model_id":  WATSONX_MODEL_ID,
+            "space_id":  WATSONX_SPACE_ID,
+            "input":     prompt,
+            "parameters": {
+                "decoding_method": "greedy",
+                "max_new_tokens":  120,
+                "stop_sequences":  ["\n\n"],
+            },
+        }).encode()
+        req = urllib.request.Request(
+            f"{WATSONX_URL}/ml/v1/text/generation?version=2023-05-29",
+            data=payload,
+            headers={
+                "Content-Type":  "application/json",
+                "Authorization": f"Bearer {token}",
+            },
+            method="POST",
         )
-        output = (result.stdout or "").strip()
-        # Strip any ANSI escape codes Bob may emit
-        output = re.sub(r"\x1b\[[0-9;]*m", "", output).strip()
-        if not output:
-            stderr = (result.stderr or "").strip()
-            return f"STATUS: UNCLEAR\nREASON: Bob returned no output — {stderr[:200]}"
-        return output
-    except FileNotFoundError:
-        return (
-            "STATUS: UNCLEAR\n"
-            "REASON: Bob Shell not installed — run: "
-            "curl -fsSL https://bob.ibm.com/download/bobshell.sh | bash"
-        )
-    except subprocess.TimeoutExpired:
-        return "STATUS: UNCLEAR\nREASON: Bob Shell timed out after 120s"
+        with urllib.request.urlopen(req, timeout=30) as r:
+            result = json.loads(r.read())
+        return result["results"][0]["generated_text"].strip()
     except Exception as e:
-        return f"STATUS: UNCLEAR\nREASON: Bob Shell error — {e}"
+        return f"STATUS: UNCLEAR\nREASON: watsonx error — {e}"
 
 
 def _parse_response(raw: str) -> tuple[str, str]:
-    """Extract STATUS and REASON from Bob's response."""
     status = "UNCLEAR"
     reason = raw.strip()
-
     status_match = re.search(r"STATUS:\s*(IMPLEMENTED|PARTIAL|MISSING|UNCLEAR)", raw, re.IGNORECASE)
     reason_match = re.search(r"REASON:\s*(.+)", raw, re.IGNORECASE)
-
     if status_match:
         status = status_match.group(1).upper()
     if reason_match:
         reason = reason_match.group(1).strip()
-
     return status, reason
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def analyze(tickets: list[dict], snapshot: dict) -> list[dict]:
-    """
-    For each ticket, find relevant code evidence, ask Bob, and return results.
-
-    Returns a list of gap records:
-    {
-      id, title, status (jira), priority, labels,
-      gap_status: IMPLEMENTED | PARTIAL | MISSING | UNCLEAR,
-      reason: str,
-      evidence_files: [str, ...]
-    }
-    """
     index   = _build_index(snapshot)
     results = []
-
     for ticket in tickets:
         rel_files  = _relevant_files(ticket, snapshot, index)
         evidence   = _format_evidence(rel_files, snapshot.get("dependencies", []))
         prompt     = _build_prompt(ticket, evidence)
-        raw        = _ask_bob(prompt)
+        raw        = _ask_llm(prompt)
         gap_status, reason = _parse_response(raw)
-
         results.append({
             "id":             ticket["id"],
             "title":          ticket["title"],
@@ -215,5 +201,4 @@ def analyze(tickets: list[dict], snapshot: dict) -> list[dict]:
             "reason":         reason,
             "evidence_files": [f["path"] for f in rel_files],
         })
-
     return results
