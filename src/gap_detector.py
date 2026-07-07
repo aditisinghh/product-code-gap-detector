@@ -107,17 +107,23 @@ def _format_evidence(files: list[dict], deps: list[str]) -> str:
 
 
 def _build_prompt(ticket: dict, evidence: str) -> str:
+    # Extract all function names from evidence for explicit mention
+    fn_names = re.findall(r"[\w]+_[\w]+|upload_\w+|get_\w+|post_\w+", evidence)
+    fn_list = ", ".join(fn_names[:30]) if fn_names else "see evidence"
+
     return (
-        f"Ticket: {ticket['title']}\n"
-        f"Description: {ticket['description'][:300]}\n\n"
-        f"Codebase functions and files found:\n{evidence}\n\n"
-        f"Based on the function names and files listed above, is this ticket "
-        f"IMPLEMENTED, PARTIAL, or MISSING in the codebase?\n"
-        f"Reply with exactly two lines:\n"
+        f"You are reviewing source code. The following functions exist in the codebase:\n"
+        f"{fn_list}\n\n"
+        f"Full file evidence:\n{evidence[:1200]}\n\n"
+        f"Ticket to evaluate:\n"
+        f"Title: {ticket['title']}\n"
+        f"Description: {ticket['description'][:250]}\n\n"
+        f"IMPORTANT: If a function name in the evidence matches what the ticket describes, "
+        f"classify as IMPLEMENTED. Do NOT say MISSING if a relevant function exists.\n\n"
+        f"Respond with exactly two lines, no other text:\n"
         f"STATUS: IMPLEMENTED\n"
-        f"REASON: one sentence\n\n"
-        f"Replace IMPLEMENTED with PARTIAL or MISSING as appropriate. "
-        f"Use IMPLEMENTED if a matching function exists even if not perfect."
+        f"REASON: [because function X exists / no matching function found]\n\n"
+        f"Replace IMPLEMENTED with PARTIAL or MISSING only if truly warranted."
     )
 
 
