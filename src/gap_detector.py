@@ -103,27 +103,15 @@ def _format_evidence(files: list[dict], deps: list[str]) -> str:
 
 
 def _build_prompt(ticket: dict, evidence: str) -> str:
-    return textwrap.dedent(f"""
-        You are a code reviewer. Decide if a feature ticket is implemented in the codebase.
-
-        TICKET {ticket['id']}: {ticket['title']}
-        Description: {ticket['description'][:400]}
-
-        CODEBASE FILES FOUND:
-        {evidence}
-
-        Instructions:
-        - If the files clearly implement what the ticket describes, answer IMPLEMENTED.
-        - If some code exists but it is incomplete, answer PARTIAL.
-        - If there is no matching code at all, answer MISSING.
-        - Only answer UNCLEAR if the evidence is truly ambiguous.
-
-        You MUST respond with exactly two lines and nothing else. No markdown. No explanation outside these two lines.
-        Line 1: STATUS: IMPLEMENTED
-        Line 2: REASON: one short sentence
-
-        Replace IMPLEMENTED with PARTIAL, MISSING, or UNCLEAR as appropriate.
-    """).strip()
+    return (
+        f"Ticket: {ticket['title']}\n"
+        f"Description: {ticket['description'][:300]}\n\n"
+        f"Relevant codebase files:\n{evidence[:600]}\n\n"
+        f"Is this ticket IMPLEMENTED, PARTIAL, MISSING, or UNCLEAR in the codebase above?\n"
+        f"Reply with two lines only:\n"
+        f"STATUS: [one of IMPLEMENTED/PARTIAL/MISSING/UNCLEAR]\n"
+        f"REASON: [one sentence]"
+    )
 
 
 # ── watsonx.ai call ───────────────────────────────────────────────────────────
@@ -144,8 +132,7 @@ def _ask_llm(prompt: str) -> str:
             "input":     prompt,
             "parameters": {
                 "decoding_method": "greedy",
-                "max_new_tokens":  150,
-                "stop_sequences":  ["\n\n"],
+                "max_new_tokens":  80,
             },
         }).encode()
         req = urllib.request.Request(
