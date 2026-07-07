@@ -1,0 +1,92 @@
+[
+  {
+    "id": "PROJ-101",
+    "title": "Add rate limiting to the /login endpoint",
+    "status": "In Progress",
+    "type": "Story",
+    "priority": "High",
+    "description": "Implement rate limiting on the /login route to prevent brute-force attacks. Max 5 attempts per minute per IP. Return 429 on breach.",
+    "labels": ["security", "auth"]
+  },
+  {
+    "id": "PROJ-102",
+    "title": "Email verification on signup",
+    "status": "To Do",
+    "type": "Story",
+    "priority": "High",
+    "description": "After a user registers, send a verification email with a time-limited token. Block login until email is confirmed.",
+    "labels": ["auth", "email"]
+  },
+  {
+    "id": "PROJ-103",
+    "title": "User profile page",
+    "status": "Done",
+    "type": "Story",
+    "priority": "Medium",
+    "description": "Create a /profile route that displays user information and allows editing name, avatar, and timezone.",
+    "labels": ["frontend", "user"]
+  },
+  {
+    "id": "PROJ-104",
+    "title": "Dark mode support",
+    "status": "In Progress",
+    "type": "Story",
+    "priority": "Low",
+    "description": "Add a dark mode toggle in the UI settings panel. Persist the preference in localStorage.",
+    "labels": ["ui", "frontend"]
+  },
+  {
+    "id": "PROJ-105",
+    "title": "Export data to CSV",
+    "status": "To Do",
+    "type": "Story",
+    "priority": "Medium",
+    "description": "Allow users to export their records as a CSV file from the dashboard. Include all visible columns.",
+    "labels": ["export", "dashboard"]
+  },
+  {
+    "id": "PROJ-106",
+    "title": "Webhook notifications",
+    "status": "In Progress",
+    "type": "Story",
+    "priority": "High",
+    "description": "Users can configure webhook URLs. The system should POST a JSON payload to registered URLs on key events (record created, updated, deleted).",
+    "labels": ["integrations", "notifications"]
+  },
+  {
+    "id": "PROJ-107",
+    "title": "Soft delete for records",
+    "status": "Done",
+    "type": "Story",
+    "priority": "Medium",
+    "description": "Records should not be hard-deleted. Add a deleted_at timestamp column. All queries should filter out soft-deleted rows by default.",
+    "labels": ["database", "backend"]
+  },
+  {
+    "id": "PROJ-108",
+    "title": "API pagination",
+    "status": "To Do",
+    "type": "Story",
+    "priority": "High",
+    "description": "All list endpoints must support cursor-based pagination. Add next_cursor and prev_cursor to responses. Default page size 20, max 100.",
+    "labels": ["api", "backend"]
+  },
+  {
+    "id": "PROJ-109",
+    "title": "Audit log for admin actions",
+    "status": "To Do",
+    "type": "Story",
+    "priority": "Medium",
+    "description": "Every admin action (user ban, role change, data deletion) must be logged with timestamp, actor ID, and action payload in an audit_log table.",
+    "labels": ["admin", "compliance"]
+  },
+  {
+    "id": "PROJ-110",
+    "title": "Two-factor authentication (TOTP)",
+    "status": "In Progress",
+    "type": "Story",
+    "priority": "High",
+    "description": "Add optional TOTP-based 2FA. Users can enroll via a QR code scan. On login, prompt for a 6-digit code if 2FA is enabled.",
+    "labels": ["security", "auth"]
+  }
+]
