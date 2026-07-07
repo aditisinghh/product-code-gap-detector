@@ -19,7 +19,8 @@ from typing import Optional
 import uvicorn
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from src.gap_detector import analyze
@@ -120,6 +121,16 @@ def get_report_html(run_id: str):
 @app.get("/health")
 def health():
     return {"status": "ok", "runs": len(_runs)}
+
+
+# ── Serve the UI ──────────────────────────────────────────────────────────────
+# Mount static files AFTER all API routes so /analyze etc. still resolve first.
+app.mount("/ui", StaticFiles(directory="ui"), name="ui")
+
+@app.get("/", response_class=FileResponse)
+def serve_ui():
+    """Open http://localhost:8001 to reach the frontend."""
+    return FileResponse("ui/index.html")
 
 
 if __name__ == "__main__":
